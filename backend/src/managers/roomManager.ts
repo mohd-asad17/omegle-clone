@@ -1,11 +1,12 @@
 import { User } from "./UserManager";
 
-let GLOBAL_USER_ID = 1;
+let GLOBAL_ROOM_ID = 1;
 
 interface Room {
   user1: User;
   user2: User;
 }
+
 export class RoomManager {
   private rooms: Map<String, Room>;
   constructor() {
@@ -14,7 +15,6 @@ export class RoomManager {
 
   createRoom(user1: User, user2: User) {
     const roomId = this.generate().toString();
-
     this.rooms.set(roomId.toString(), {
       user1,
       user2,
@@ -23,6 +23,10 @@ export class RoomManager {
     user1.socket.emit("send-offer", {
       roomId,
     });
+
+    user2.socket.emit("send-offer", {
+      roomId
+    })
   }
 
   onOffer(roomId: string, sdp: string, senderSocketId: string) {
@@ -67,10 +71,10 @@ export class RoomManager {
 
     const receivingUser =
       room.user1.socket.id === senderSocketId ? room.user2 : room.user1;
-    receivingUser.socket.emit("add-ice-candidate", { candidate, type});
+    receivingUser.socket.emit("add-ice-candidate", ({ candidate, type}));
   }
 
   generate() {
-    return GLOBAL_USER_ID++;
+    return GLOBAL_ROOM_ID++;
   }
 }

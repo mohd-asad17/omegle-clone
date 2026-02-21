@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 
 const URL = "http://localhost:3000";
+
 export const Room = ({
     name,
     localAudioTrack,
@@ -31,9 +32,13 @@ export const Room = ({
       const pc = new RTCPeerConnection();
       setSendingPC(pc);
       if(localVideoTrack){
+        console.log("added track");
+        console.log(localVideoTrack);
         pc.addTrack(localVideoTrack);
       }
       if(localAudioTrack){
+        console.log("added track");
+        console.log(localAudioTrack);
         pc.addTrack(localAudioTrack);
       } 
       
@@ -44,6 +49,7 @@ export const Room = ({
           socket.emit("add-ice-candidate", {
             candidate: e.candidate,
             type: "sender",
+            roomId
           })
         }
       };
@@ -51,27 +57,22 @@ export const Room = ({
      pc.onnegotiationneeded = async () => {
       console.log("on negotiated needed, sending offer");
        const sdp = await pc.createOffer();
-         await pc.setLocalDescription(sdp);
+       pc.setLocalDescription(sdp);
          socket.emit("offer", {
            sdp,
            roomId,
          });
-     };
+     }
     });
 
     socket.on("offer", async ({ roomId, sdp: remoteSdp }) => {
       console.log("received offer.");
       setLobby(false);
       const pc = new RTCPeerConnection();
-      // if (localVideoTrack) {
-      //   pc.addTrack(localVideoTrack);
-      // }
-      // if (localAudioTrack) {
-      //   pc.addTrack(localAudioTrack);
-      // }
-      await pc.setRemoteDescription(remoteSdp);
+     
+      pc.setRemoteDescription(remoteSdp);
       const sdp = await pc.createAnswer();
-      await pc.setLocalDescription(sdp);
+      pc.setLocalDescription(sdp);
       const stream = new MediaStream();
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
@@ -79,32 +80,67 @@ export const Room = ({
       setRemoteMediaStream(stream);
 
       setReceivingPC(pc);
+    
 
-     pc.onicecandidate = async (e) => {
-      console.log("on ice candidate on receiving side.");
-        if (e.candidate) {
+    //  pc.onicecandidate = async (e) => {
+    //   console.log("on ice candidate on receiving side.");
+    //     if (e.candidate) {
+    //       socket.emit("add-ice-candidate", {
+    //         candidate: e.candidate,
+    //         type: "receiver",
+    //       })
+    //     }
+    //   };
+
+      pc.ontrack = (e) => {
+        alert("on Track");
+        // if (type === "audio") {
+        //   // @ts-expect-error
+        //   remoteVideoRef.current?.srcObject.addTrack(track);
+        // } else {
+        //   // @ts-ignore
+        //   remoteVideoRef.current?.srcObject.addTrack(track);
+        // }
+        // remoteVideoRef.current?.play();
+      };
+      pc.onicecandidate = async (e) => {
+        if(!e.candidate){
+          return
+        }
+
+        console.log("on ice candidate receiving side");
+        if(e.candidate){
           socket.emit("add-ice-candidate", {
             candidate: e.candidate,
             type: "receiver",
+            roomId
           })
         }
-      };
-
-      pc.ontrack = ({track, type}) => {
-        if (type === "audio") {
-          // @ts-expect-error
-          remoteVideoRef.current?.srcObject.addTrack(track);
-        } else {
-          // @ts-ignore
-          remoteVideoRef.current?.srcObject.addTrack(track);
-        }
-        remoteVideoRef.current?.play();
-      };
+      }
 
       socket.emit("answer", {
         roomId,
         sdp: sdp,
       });
+
+      setTimeout(() => {
+        const track1 = pc.getTransceivers()[0].receiver.track;
+        const track2 = pc.getTransceivers()[1].receiver.track;
+        console.log(track1);
+        if(track1.kind === "video"){
+          setRemoteAudioTrack(track2);
+          setRemoteVideoTrack(track1);
+        } else {
+          setRemoteAudioTrack(track2);
+          setRemoteVideoTrack(track1);
+        }
+        // @ts-ignore
+        remoteVideoRef.current?.srcObject.addTrack(track1);
+        // @ts-ignore
+        remoteVideoRef.current?.srcObject.addTrack(track2);
+        remoteVideoRef.current?.play();
+
+      }, 5000)
     });
 
     socket.on("answer", ({ roomId, sdp: remoteSdp }) => {
@@ -125,14 +161,24 @@ export const Room = ({
       console.log({candidate, type});
       if(type === "sender"){
         setReceivingPC(pc => {
+          if(!pc) {
+            console.error("receiving pc not found");
+          } else {
+            console.error(pc.ontrack);
+          }
           pc?.addIceCandidate(candidate);
           return pc;
-        })
+        });
       } else {
-        setReceivingPC(pc => {
+        setSendingPC(pc => {
+          if(!pc){
+            console.error("sending pc not found");
+          } else  {
+            // console.error(pc.ontrack);
+          }
           pc?.addIceCandidate(candidate);
           return pc;
-        })
+        });
       }
     })
 
@@ -143,8 +189,8 @@ export const Room = ({
     if (localVideoRef.current) {
       if (localVideoTrack) {
         localVideoRef.current.srcObject = new MediaStream([localVideoTrack]);
+        localVideoRef.current.play();
       }
-      localVideoRef.current.play();
     }
   }, [localVideoRef]);
 
@@ -153,7 +199,7 @@ export const Room = ({
       hi {name}
       <video autoPlay width={400} height={400} ref={localVideoRef} />
       {lobby ? "Waiting you to connect to Someone": null}
-
+      <br />
       <video autoPlay width={400} height={400} ref={remoteVideoRef} />
     </div>
   );

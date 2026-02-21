@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RoomManager = void 0;
-let GLOBAL_USER_ID = 1;
+let GLOBAL_ROOM_ID = 1;
 class RoomManager {
     constructor() {
         this.rooms = new Map();
@@ -14,6 +14,9 @@ class RoomManager {
         });
         user1.socket.emit("send-offer", {
             roomId,
+        });
+        user2.socket.emit("send-offer", {
+            roomId
         });
     }
     onOffer(roomId, sdp, senderSocketId) {
@@ -44,10 +47,10 @@ class RoomManager {
             return;
         }
         const receivingUser = room.user1.socket.id === senderSocketId ? room.user2 : room.user1;
-        receivingUser.socket.emit("add-ice-candidate", { candidate, type });
+        receivingUser.socket.emit("add-ice-candidate", ({ candidate, type }));
     }
     generate() {
-        return GLOBAL_USER_ID++;
+        return GLOBAL_ROOM_ID++;
     }
 }
 exports.RoomManager = RoomManager;
