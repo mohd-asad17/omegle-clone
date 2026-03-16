@@ -10,7 +10,7 @@ export default defineConfig([
   {
     files: ['**/*.{ts,tsx}'],
     rules: {
-      "no-unused-vars": "warn"
+      "no-unused-vars": "off"
     },
     extends: [
       js.configs.recommended,
